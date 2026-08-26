@@ -1,0 +1,114 @@
+[
+  {
+    "name": "LLM fine tuning for question generation (Accure, Inc.)",
+    "stack": [
+      "Python",
+      "PyTorch",
+      "Hugging Face Transformers",
+      "PEFT",
+      "LoRA",
+      "quantization",
+      "CUDA",
+      "Slurm",
+      "HPC"
+    ],
+    "summary": "Fine tuned billion parameter models including T5 and Llama 2 to generate questions for synthetic training data. Applied LoRA and quantization to cut training time and ran jobs on an HPC cluster via Slurm.",
+    "role": "LLM/AI Engineer and Scrum master",
+    "link": ""
+  },
+  {
+    "name": "APEX: QLoRA fine tuning capstone (George Mason)",
+    "stack": [
+      "Python",
+      "PyTorch",
+      "Hugging Face",
+      "QLoRA",
+      "bitsandbytes"
+    ],
+    "summary": "Master's capstone applying QLoRA to adapt a large language model on limited hardware.",
+    "role": "Lead",
+    "link": ""
+  },
+  {
+    "name": "Deepfake detection research paper",
+    "stack": [
+      "Python",
+      "deep learning"
+    ],
+    "summary": "Co wrote a research paper on detecting deepfake media.",
+    "role": "Co author",
+    "link": ""
+  },
+  {
+    "name": "NBA champion forecast 2022",
+    "stack": [
+      "Python",
+      "NumPy",
+      "pandas",
+      "scikit-learn",
+      "RandomForestClassifier",
+      "LogisticRegression",
+      "GitHub"
+    ],
+    "summary": "Predictive model that correctly forecast the 2022 NBA champions before the finals.",
+    "role": "Lead",
+    "link": ""
+  },
+  {
+    "name": "Housing market study in R",
+    "stack": [
+      "R",
+      "Random Forest",
+      "SVM",
+      "MARS",
+      "Logit",
+      "Linear Regression",
+      "Box Cox"
+    ],
+    "summary": "Built and compared multiple statistical models to identify the features that most influence sale prices.",
+    "role": "Lead",
+    "link": ""
+  },
+  {
+    "name": "UFC statistics analysis",
+    "stack": [
+      "R",
+      "ggplot2",
+      "lattice",
+      "hexbin",
+      "Lasso Regression",
+      "Random Forest"
+    ],
+    "summary": "Visualization and feature importance study of UFC fight statistics.",
+    "role": "Lead",
+    "link": ""
+  },
+  {
+    "name": "FAA Remote Tower IGCE (Regulus Group)",
+    "stack": [
+      "Excel",
+      "@Risk",
+      "Monte Carlo simulation",
+      "GR&A workbooks",
+      "CLIN pricing"
+    ],
+    "summary": "Independent Government Cost Estimate evaluating a vendor proposal across a 26 site deployment, plus STARS SS5 cost basis work.",
+    "role": "Lead Cost Analyst",
+    "link": ""
+  },
+  {
+    "name": "This site",
+    "stack": [
+      "Next.js",
+      "React",
+      "LangChain",
+      "Anthropic Claude",
+      "Voyage embeddings",
+      "Zod",
+      "Vercel"
+    ],
+    "summary": "RAG chatbot with a LangChain tool calling agent on Claude that answers only from my resume, cites sources, and scores pasted job descriptions with structured output.",
+    "role": "Builder",
+    "link": ""
+  }
+]
