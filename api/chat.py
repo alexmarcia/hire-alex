@@ -238,6 +238,57 @@ Tagging rules:
 6. priority is required only when the posting calls it a must have, minimum, or basic qualification; otherwise preferred.
 7. Assign every requirement a category bucket. Merge near duplicates so counts reflect distinct skills, not phrasing."""
 
+
+def assess_fit(job_description: str, llm: ChatAnthropic, ctx: dict) -> dict:
+    """Retrieve relevant experience, have Claude tag each requirement, compute the rubric score. Stores the card in ctx."""
+    kind, docs = retrieve(job_description[:2000], 6)
+    ctx["retrieval"] = kind
+    for d in docs:
+        ctx["sources"][source_key(d)] = True
+    grader = llm.with_structured_output(FitAssessment)
+    result = None
+    last_err = None
+    for attempt in range(2):
+        try:
+            result = grader.invoke([
+                ("system", GRADER_PROMPT),
+                ("human", f"CANDIDATE MATERIAL:\n{format_docs(docs)}\n\nJOB DESCRIPTION:\n{job_description[:MAX_CHARS]}"),
+            ])
+            if result and result.requirements:
+                break
+        except Exception as err:
+            last_err = err
+            print("Fit grading attempt failed:", repr(err))
+    if not result or not result.requirements:
+        print("Fit grading produced no requirements:", repr(last_err))
+        return {"error": "Could not structure the job description. Ask the visitor to paste the posting text again."}
+    reqs = [r.model_dump() for r in result.requirements]
+    scored = score_fit(reqs)
+
+    def label(r):
+        return f"{r['requirement']}: {r['evidence']}" if r.get("evidence") else r["requirement"]
+
+    fit = {
+        "score": scored["score"],
+        "counts": scored["counts"],
+        "buckets": scored["buckets"],
+        "summary": result.summary,
+        "matches": [label(r) for r in reqs if r["status"] == "met"],
+        "gaps": [f"Hard gap: {label(r)}" for r in reqs if r["status"] == "gap"]
+        + [f"Learnable: {label(r)}" for r in reqs if r["status"] == "learnable"],
+        "requirements": reqs,
+    }
+    ctx["fit"] = fit
+    print(f"Fit scored: {fit['score']} across {len(reqs)} requirements")
+    return fit
+
+
+JD_PATTERN = re.compile(r"job description|how well do i fit|good fit for|requirements|responsibilities|qualifications", re.IGNORECASE)
+
+
+def looks_like_job_description(text: str) -> bool:
+    return len(text) > 500 or bool(JD_PATTERN.search(text))
+
 # ---------------------------------------------------------------------------
 # 4. Tools and agent
 # ---------------------------------------------------------------------------
@@ -247,7 +298,7 @@ Grounding rules:
 - You do not have my background memorized. Before answering any question about my experience, skills, education, projects, clearance, or how this site works, call search_background and answer ONLY from what it returns.
 - Never invent employers, dates, skills, tools, metrics, or stories. If the retrieved material does not cover something, say so plainly and invite them to email me at {EMAIL}.
 - When someone pastes or describes a job posting, or asks whether I fit a role, call assess_job_fit ONCE with the full text, then immediately write your answer from its result. Do not call search_background first for this case and do not call assess_job_fit more than once per posting.
-  The site shows the score, matches, and gaps in a card above your reply, so do not repeat the lists. Do not promise specific study plans, certifications, or side projects. Write 3 to 5 sentences of narrative in my voice: why this role fits what I've been building toward, the one or two strengths that matter most, and how I approach the gaps. Never say I am "not there yet", never suggest a different role, never steer them elsewhere, and do not quote the numeric score. Close with this idea in my voice: if the role is open to an individual with initiative, strong fundamentals, and room for growth, I will not be a disappointment, and invite them to email me.
+  The site shows the score, matches, and gaps in a card above your reply, so do not repeat the lists. Do not promise specific study plans, certifications, or side projects. Never state that I have direct experience with a specific named tool, platform, or product (for example a vendor's software, a specific cloud service, a specific framework) unless that exact name appears in my resume; a "met" tag earned through transferable skills must be described as the underlying skill (data pipelines, statistical modeling, SQL) transferring to the new context, never as prior hands on use of the named tool itself. Write 3 to 5 sentences of narrative in my voice: why this role fits what I've been building toward, the one or two strengths that matter most, and how I approach the gaps. Never say I am "not there yet", never suggest a different role, never steer them elsewhere, and do not quote the numeric score. Close with this idea in my voice: if the role is open to an individual with initiative, strong fundamentals, and room for growth, I will not be a disappointment, and invite them to email me.
 - When someone asks for a list of projects, call list_projects.
 
 Style:
@@ -278,40 +329,9 @@ def build_agent():
     def assess_job_fit(job_description: str) -> str:
         """Score how well Alex matches a job description. Use whenever a recruiter pastes a posting or asks about fit for a specific role."""
         ctx["tools"].append("assess_job_fit")
-        kind, docs = retrieve(job_description[:2000], 6)
-        ctx["retrieval"] = kind
-        for d in docs:
-            ctx["sources"][source_key(d)] = True
-        grader = llm.with_structured_output(FitAssessment)
-        result = None
-        for attempt in range(2):
-            try:
-                result = grader.invoke([
-                    ("system", GRADER_PROMPT),
-                    ("human", f"CANDIDATE MATERIAL:\n{format_docs(docs)}\n\nJOB DESCRIPTION:\n{job_description[:MAX_CHARS]}"),
-                ])
-                if result and result.requirements:
-                    break
-            except Exception as err:
-                if attempt == 1:
-                    return json.dumps({"error": f"Could not structure the job description: {err}"})
-        reqs = [r.model_dump() for r in (result.requirements if result else [])]
-        scored = score_fit(reqs)
-
-        def label(r):
-            return f"{r['requirement']}: {r['evidence']}" if r.get("evidence") else r["requirement"]
-
-        fit = {
-            "score": scored["score"],
-            "counts": scored["counts"],
-            "buckets": scored["buckets"],
-            "summary": result.summary if result else "",
-            "matches": [label(r) for r in reqs if r["status"] == "met"],
-            "gaps": [f"Hard gap: {label(r)}" for r in reqs if r["status"] == "gap"]
-            + [f"Learnable: {label(r)}" for r in reqs if r["status"] == "learnable"],
-            "requirements": reqs,
-        }
-        ctx["fit"] = fit
+        fit = assess_fit(job_description, llm, ctx)
+        if "error" in fit:
+            return json.dumps(fit)
         return json.dumps({k: fit[k] for k in ("score", "summary", "matches", "gaps")})
 
     @tool
@@ -335,6 +355,12 @@ def run_agent(messages: list[dict]) -> dict:
     agent, ctx = build_agent()
     last_user = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
     result = agent.invoke({"messages": [(m["role"] if m["role"] == "user" else "assistant", m["content"]) for m in messages]}, config={"recursion_limit": 24})
+    print("Tools used:", ctx["tools"], "| fit:", "yes" if ctx["fit"] else "no")
+    if ctx["fit"] is None and looks_like_job_description(last_user):
+        # The model answered without scoring; score in code so the visitor always gets the card.
+        print("Agent skipped assess_job_fit on a job description; scoring directly.")
+        ctx["tools"].append("assess_job_fit")
+        assess_fit(last_user, ChatAnthropic(model=MODEL, max_tokens=700), ctx)
     reply = ""
     for m in reversed(result["messages"]):
         if getattr(m, "type", "") == "ai":
