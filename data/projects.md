@@ -28,5 +28,5 @@ Stack: Excel, @Risk, Monte Carlo simulation, GR&A workbooks, CLIN pricing.
 Independent Government Cost Estimate evaluating a vendor proposal across a 26 site deployment, plus STARS SS5 cost basis work. Lead Cost Analyst.
 
 ## This site
-Stack: Next.js, React, LangChain, Anthropic Claude, Voyage embeddings, Vercel.
+Stack: Python, LangChain, Anthropic Claude, Voyage embeddings, Pydantic, React, Next.js, Vercel.
 RAG chatbot with a tool calling agent that answers only from my resume and scores pasted job descriptions.

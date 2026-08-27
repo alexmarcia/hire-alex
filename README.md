@@ -1,60 +1,49 @@
-# Hire Alex: a RAG + agent hiring assistant
+# Hire Alex: a RAG + agent hiring assistant (Python backend, React frontend)
 
-A first person chatbot for recruiters, built to demonstrate the stack AI engineering roles ask for: retrieval augmented generation, LangChain, Anthropic tool use, and an agent loop. It answers only from my resume, cites its sources, and scores pasted job descriptions.
+A first person chatbot for recruiters, built to demonstrate the stack AI engineering roles ask for: retrieval augmented generation, LangChain, Anthropic tool use, and an agent loop, in Python. It answers only from my resume, cites its sources, and scores job descriptions with a fixed rubric.
 
 ## Architecture
 ```
 Browser (React, Next.js)
    |  POST /api/chat  {messages}
    v
-Next.js API route (Vercel, Node runtime)
-   |  rate limit, input caps, key stays server side
+api/chat.py  (Python serverless function on Vercel)
+   |  rate limit, input caps, keys server side
    v
-LangChain createAgent  <->  Claude (@langchain/anthropic)
+LangChain create_agent  <->  Claude (langchain-anthropic)
    |  tools the model can call:
-   |   search_background  -> RAG retriever over /data/*.md
-   |   assess_job_fit     -> retrieval + Claude structured output (Zod schema)
+   |   search_background  -> RAG retrieval over /data/*.md
+   |   assess_job_fit     -> retrieval + Claude structured output (Pydantic) + rubric scorer
    |   list_projects      -> projects.json
    v
-Retriever: MarkdownTextSplitter -> Voyage embeddings -> MemoryVectorStore
-           (falls back to BM25 keyword retrieval when no embedding key is set)
+Retriever: MarkdownTextSplitter -> Voyage embeddings -> InMemoryVectorStore
+           (BM25 keyword fallback when embeddings are unavailable or rate limited)
 ```
 
 ## What each piece demonstrates
-* RAG: `lib/rag.js` chunks markdown by heading, embeds with Voyage AI, stores in a vector store, and retrieves the top chunks per query. Sources are returned to the UI and shown under every answer.
-* LangChain agent: `lib/agent.js` uses LangChain 1.x `createAgent` with three `tool()` definitions. The model decides when to search, when to score a job, and when to list projects.
-* Anthropic: Claude runs the agent through `@langchain/anthropic`. Switch models with `ANTHROPIC_MODEL`.
-* Structured output: job fit scoring uses `withStructuredOutput` and a Zod schema so score, matches, and gaps come back typed.
-* Grounding and safety: the system prompt forbids answering from memory, the UI shows retrieval sources, and the route enforces per IP rate limits and size caps.
+* RAG: `api/chat.py` section 2 chunks markdown by heading, embeds with Voyage AI, stores in a vector store, retrieves top chunks per query, and falls back to BM25 so retrieval never fails. Sources are shown under every answer.
+* LangChain agent: section 4 uses LangChain 1.x `create_agent` with three `@tool` functions. The model decides when to search, when to score, and when to list projects.
+* Anthropic: Claude runs the agent through `langchain-anthropic`. Switch models with `ANTHROPIC_MODEL`.
+* Structured output plus rubric: Claude tags each posting requirement (category, priority, met/learnable/gap) with `with_structured_output(FitAssessment)`; `score_fit()` computes the percentage from a bucket based rubric so fifteen soft skills cannot outweigh three missing core requirements.
+* Frontend: React chat UI with source chips, animated relevancy gauge and breakdown, suggested questions, architecture diagram, exit intent popup.
 
 ## Files
-* `app/page.js`: chat UI with source chips and a "How this site works" panel.
-* `app/api/chat/route.js`: request validation, rate limiting, calls the agent.
-* `lib/rag.js`: loading, chunking, embedding, retrieval.
-* `lib/agent.js`: system prompt, tools, agent construction.
-* `data/*.md`: the knowledge base (resume, FAQ, projects, about this site). Edit these to change what the bot knows.
-* `data/projects.json`: structured projects for the `list_projects` tool.
+* `api/chat.py`: the whole backend (knowledge base, retrieval, rubric, tools, agent, HTTP handler).
+* `requirements.txt`: Python dependencies for Vercel.
+* `app/page.js`, `app/layout.js`, `app/globals.css`: the frontend.
+* `data/*.md`, `data/projects.json`: the knowledge base. Edit these to change what the bot knows.
 
 ## Run locally
-1. Node 18 or newer.
-2. `npm install`
-3. Copy `.env.example` to `.env.local`. Add `ANTHROPIC_API_KEY`. Add `VOYAGE_API_KEY` (free tier at voyageai.com) to enable vector search; without it the app uses BM25 keyword retrieval.
-4. `npm run dev` and open http://localhost:3000
+1. Python 3.11+ and Node 18+.
+2. `pip install -r requirements.txt` and `npm install`.
+3. Export `ANTHROPIC_API_KEY` and `VOYAGE_API_KEY` in your shell (or a .env you source).
+4. Run the backend locally with `vercel dev` (installs via `npm i -g vercel`), which serves both the Next.js app and the Python function at http://localhost:3000.
 
-## Deploy to Vercel (free)
-1. Push this folder to a new GitHub repo.
-2. On vercel.com choose New Project, import the repo (Next.js is detected).
-3. Add environment variables: `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY`, optionally `ANTHROPIC_MODEL`.
-4. Deploy. You get a `*.vercel.app` URL immediately.
-5. Custom domain: Settings, Domains, add your domain, then set the DNS records shown at your registrar.
-
-## Cost
-* Vercel hobby: free. Domain: about $10 to $15 a year.
-* Anthropic API: pennies per conversation (`claude-haiku-4-5` for lowest cost).
-* Voyage embeddings: free tier covers a personal site many times over. The index is tiny and rebuilds on cold start.
+## Deploy to Vercel
+1. Push to GitHub (folders: api, app, data; files: package.json, next.config.mjs, vercel.json, requirements.txt, README.md).
+2. Import into Vercel. It detects Next.js for the frontend and builds `api/chat.py` as a Python function from `requirements.txt`.
+3. Add environment variables `ANTHROPIC_API_KEY` and `VOYAGE_API_KEY`. Deploy.
+4. Add a custom domain under Settings, Domains.
 
 ## Resume line
-Built and deployed a RAG chatbot with a LangChain tool calling agent on Anthropic Claude (Next.js, Vercel): semantic retrieval over a markdown knowledge base with Voyage embeddings, structured output job fit scoring with Zod, source citations, and server side rate limiting.
-
-## Extend it
-Add a `tool()` in `lib/agent.js`. Ideas: fetch GitHub repos live, email a recruiter's message to yourself, book a call through a scheduling link, or swap MemoryVectorStore for Pinecone or pgvector to show a hosted vector database.
+Built and deployed a RAG chatbot with a Python LangChain tool calling agent on Anthropic Claude (Vercel serverless, React/Next.js frontend): semantic retrieval over a markdown knowledge base with Voyage embeddings and BM25 fallback, Pydantic structured output feeding a rubric based job fit scorer, source citations, and rate limiting.

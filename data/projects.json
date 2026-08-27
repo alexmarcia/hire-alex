@@ -99,12 +99,13 @@
   {
     "name": "This site",
     "stack": [
-      "Next.js",
-      "React",
+      "Python",
       "LangChain",
       "Anthropic Claude",
       "Voyage embeddings",
-      "Zod",
+      "Pydantic",
+      "React",
+      "Next.js",
       "Vercel"
     ],
     "summary": "RAG chatbot with a LangChain tool calling agent on Claude that answers only from my resume, cites sources, and scores pasted job descriptions with structured output.",

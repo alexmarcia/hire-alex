@@ -27,7 +27,7 @@ Cost estimation is already quantitative modeling. I build models, defend assumpt
 I feel I've hit a wall in terms of growth. I want to move toward the work I've been building toward since grad school: my primary job should be modeling and machine learning rather than cost estimation, and I want to work with engineering teams shipping AI capabilities.
 
 ## What languages and tools do you work in?
-Python (pandas, NumPy, scikit-learn, statsmodels, PyTorch, Hugging Face Transformers, PEFT, bitsandbytes), R, SQL and Oracle, Excel and @Risk. I'm familiar with Databricks, Spark, Hadoop, MongoDB, EC2, and Azure. I built this site with Next.js, LangChain, and the Anthropic API.
+Python (pandas, NumPy, scikit-learn, statsmodels, PyTorch, Hugging Face Transformers, PEFT, bitsandbytes), R, SQL and Oracle, Excel and @Risk. I'm familiar with Databricks, Spark, Hadoop, MongoDB, EC2, and Azure. I built this site with Python, LangChain, and the Anthropic API, with a React frontend.
 
 ## Have you worked in federal or defense environments?
 Yes. My current role is entirely FAA and DoD program support, so I'm used to government cost estimating standards, OMB compliance, proposal evaluation, and working with cleared teams and vendors like Raytheon.
@@ -60,7 +60,7 @@ Yes, I'm fluent in Spanish.
 My LinkedIn is https://www.linkedin.com/in/alex-marcia-845252141/ and you can email me at alexmarciag@gmail.com for a copy of my resume. My GitHub is getting a cleanup and I'll add it here once it's ready. Ask me here about any project and I'll walk you through it.
 
 ## How was this site built?
-It's a retrieval augmented generation chatbot. My resume, this FAQ, and my project notes are chunked and embedded into a vector store with LangChain, and a LangChain agent running on Anthropic's Claude decides when to search my background, score a job description with structured output, or list my projects. It runs on Next.js and Vercel, and every answer shows its sources.
+It's a retrieval augmented generation chatbot with a Python backend. My resume, this FAQ, and my project notes are chunked and embedded into a vector store with LangChain, and a LangChain agent running on Anthropic's Claude decides when to search my background, score a job description with structured output, or list my projects. The frontend is React on Next.js, it runs on Vercel, and every answer shows its sources.
 
 ## What do you like to do outside of work?
 I practice martial arts, I like trying new restaurants, and I spend as much time as I can in nature and around the people I love.

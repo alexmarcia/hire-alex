@@ -46,7 +46,7 @@ LLM/AI Engineer, Accure, Inc., Arlington VA (remote), Aug 2023 to Dec 2023.
 - Familiar: Databricks, Spark, Hadoop, MongoDB, EC2, Azure.
 
 ## Personal projects
-- Built and deployed this site: a first person hiring assistant using JavaScript, React, and Next.js on Vercel, with a LangChain tool calling agent on Anthropic's Claude, retrieval augmented generation over my resume with a vector store, structured output job fit scoring, and a serverless API route with rate limiting.
+- Built and deployed this site: a first person hiring assistant with a Python backend (LangChain create_agent on Anthropic's Claude, retrieval augmented generation over my resume with Voyage embeddings and a vector store, Pydantic structured output for job fit scoring, a rubric scorer, and a rate limited serverless function on Vercel) and a React and Next.js frontend.
 
 ## Leadership
 - Pi Kappa Phi Fraternity, founding father. Head of the Standards Board Committee, Sept 2015 to Dec 2016, helping resolve internal and external conflicts.

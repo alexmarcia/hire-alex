@@ -41,10 +41,10 @@ const TOOL_LABELS = {
 
 const STACK = [
   ["RAG", "Markdown knowledge base chunked with LangChain, embedded with Voyage AI, searched in a vector store (BM25 fallback)."],
-  ["LangChain agent", "createAgent tool calling loop on Claude via @langchain/anthropic; the model decides when to search or score."],
-  ["Structured output", "Claude tags each posting requirement with a skill area, priority, and met/learnable/gap status via a Zod schema; code computes the score from a bucket based rubric so quantity cannot outweigh quality."],
+  ["Python agent", "LangChain create_agent tool calling loop on Claude via langchain-anthropic; the model decides when to search or score."],
+  ["Structured output", "Claude tags each posting requirement with a skill area, priority, and met/learnable/gap status via a Pydantic schema; Python computes the score from a bucket based rubric so quantity cannot outweigh quality."],
   ["Grounding", "Answers only from retrieved chunks; every reply shows its sources."],
-  ["Backend", "Next.js API route on Vercel, keys server side, per IP rate limits, input caps."],
+  ["Backend", "Python serverless function on Vercel (api/chat.py), keys server side, per IP rate limits, input caps."],
 ];
 
 
@@ -212,7 +212,7 @@ function ArchitectureDiagram() {
   return (
     <div className="ac-arch">
       <div className="ac-arch-title">How this site works</div>
-      <svg viewBox="0 0 760 420" role="img" aria-label="Architecture: browser to Next.js API route to LangChain agent on Claude, which calls search, job fit, and project tools backed by a vector store built from markdown files">
+      <svg viewBox="0 0 760 420" role="img" aria-label="Architecture: browser to Python API on Vercel to LangChain agent on Claude, which calls search, job fit, and project tools backed by a vector store built from markdown files">
         <defs>
           <marker id="ad-head" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
             <path d="M0 0 L8 4 L0 8 z" className="ad-head" />
@@ -220,13 +220,13 @@ function ArchitectureDiagram() {
         </defs>
         {box(20, 20, 200, 60, "Browser", "React chat UI (Next.js)")}
         {arrow(220, 50, 280, 50)}
-        {box(280, 20, 200, 60, "API route", "Vercel, rate limits, key server side")}
+        {box(280, 20, 200, 60, "Python API", "Vercel function, rate limits, keys")}
         {arrow(480, 50, 540, 50)}
-        {box(540, 20, 200, 60, "LangChain agent", "createAgent on Claude", "accent")}
+        {box(540, 20, 200, 60, "LangChain agent", "create_agent on Claude", "accent")}
         {arrow(640, 80, 640, 130)}
         <text x="655" y="112" className="ad-note">model decides which tool to call</text>
         {box(80, 130, 180, 60, "search_background", "semantic search")}
-        {box(290, 130, 180, 60, "assess_job_fit", "Zod structured output")}
+        {box(290, 130, 180, 60, "assess_job_fit", "Pydantic structured output")}
         {box(500, 130, 180, 60, "list_projects", "projects.json")}
         {arrow(600, 130, 230, 130)}
         {arrow(610, 130, 400, 130)}
