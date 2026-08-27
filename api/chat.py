@@ -33,8 +33,8 @@ from langchain.tools import tool
 # ---------------------------------------------------------------------------
 ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = ROOT / "data"
-MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-5")
-VOYAGE_MODEL = os.environ.get("VOYAGE_MODEL", "voyage-3.5-lite")
+MODEL = os.environ.get("ANTHROPIC_MODEL") or "claude-sonnet-5"
+VOYAGE_MODEL = os.environ.get("VOYAGE_MODEL") or "voyage-3.5-lite"
 MAX_HISTORY = 12
 MAX_CHARS = 8000
 RATE_LIMIT = 20
@@ -295,7 +295,7 @@ def looks_like_job_description(text: str) -> bool:
 SYSTEM_PROMPT = f"""You are Alex Marcia-Gonzalez, speaking in the FIRST PERSON ("I", "my") on your personal hiring site. Recruiters and hiring managers are chatting with you.
 
 Grounding rules:
-- You do not have my background memorized. Before answering any question about my experience, skills, education, projects, clearance, or how this site works, call search_background and answer ONLY from what it returns.
+- You do not have my background memorized. Before answering any question about my experience, skills, education, projects, clearance, or how this site works, call search_background once (twice at most if the first search clearly missed) and answer ONLY from what it returns. Then write the answer; do not keep searching.
 - Never invent employers, dates, skills, tools, metrics, or stories. If the retrieved material does not cover something, say so plainly and invite them to email me at {EMAIL}.
 - When someone pastes or describes a job posting, or asks whether I fit a role, call assess_job_fit ONCE with the full text, then immediately write your answer from its result. Do not call search_background first for this case and do not call assess_job_fit more than once per posting.
   The site shows the score, matches, and gaps in a card above your reply, so do not repeat the lists. Do not promise specific study plans, certifications, or side projects. Never state that I have direct experience with a specific named tool, platform, or product (for example a vendor's software, a specific cloud service, a specific framework) unless that exact name appears in my resume; a "met" tag earned through transferable skills must be described as the underlying skill (data pipelines, statistical modeling, SQL) transferring to the new context, never as prior hands on use of the named tool itself. Write 3 to 5 sentences of narrative in my voice: why this role fits what I've been building toward, the one or two strengths that matter most, and how I approach the gaps. Never say I am "not there yet", never suggest a different role, never steer them elsewhere, and do not quote the numeric score. Close with this idea in my voice: if the role is open to an individual with initiative, strong fundamentals, and room for growth, I will not be a disappointment, and invite them to email me.
@@ -351,24 +351,46 @@ SITE_PATTERN = re.compile(
 )
 
 
+NARRATIVE_PROMPT = SYSTEM_PROMPT + """
+
+A fit assessment for the posting below has ALREADY been computed and is shown to the visitor as a card with the score, matches, and gaps. Do not call any tools. Write only the 3 to 5 sentence narrative described above, grounded in the assessment and my resume material provided here."""
+
+
+def _extract_text(msg) -> str:
+    c = getattr(msg, "content", "")
+    if isinstance(c, str):
+        return c.strip()
+    return "".join(b.get("text", "") for b in c if isinstance(b, dict) and b.get("type") == "text").strip()
+
+
 def run_agent(messages: list[dict]) -> dict:
-    agent, ctx = build_agent()
     last_user = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
-    result = agent.invoke({"messages": [(m["role"] if m["role"] == "user" else "assistant", m["content"]) for m in messages]}, config={"recursion_limit": 24})
-    print("Tools used:", ctx["tools"], "| fit:", "yes" if ctx["fit"] else "no")
-    if ctx["fit"] is None and looks_like_job_description(last_user):
-        # The model answered without scoring; score in code so the visitor always gets the card.
-        print("Agent skipped assess_job_fit on a job description; scoring directly.")
+    ctx = {"tools": [], "sources": {}, "retrieval": None, "fit": None}
+    history = [(m["role"] if m["role"] == "user" else "assistant", m["content"]) for m in messages]
+
+    if looks_like_job_description(last_user):
+        # Fast path: exactly two model calls. 1) structured tagging, 2) narrative with no tool loop.
+        llm = ChatAnthropic(model=MODEL, max_tokens=700)
         ctx["tools"].append("assess_job_fit")
-        assess_fit(last_user, ChatAnthropic(model=MODEL, max_tokens=700), ctx)
-    reply = ""
-    for m in reversed(result["messages"]):
-        if getattr(m, "type", "") == "ai":
-            c = m.content
-            reply = c if isinstance(c, str) else "".join(b.get("text", "") for b in c if isinstance(b, dict) and b.get("type") == "text")
-            reply = reply.strip()
-            if reply:
-                break
+        fit = assess_fit(last_user, llm, ctx)
+        kind, docs = retrieve(last_user[:2000], 6)
+        context = (
+            f"MY RESUME MATERIAL:\n{format_docs(docs)}\n\nFIT ASSESSMENT:\n"
+            + json.dumps({k: fit.get(k) for k in ("score", "summary", "matches", "gaps")} if "error" not in fit else fit)
+        )
+        reply_msg = llm.invoke([("system", NARRATIVE_PROMPT + "\n\n" + context)] + history)
+        reply = _extract_text(reply_msg)
+    else:
+        agent, ctx = build_agent()
+        result = agent.invoke({"messages": history}, config={"recursion_limit": 10})
+        reply = ""
+        for m in reversed(result["messages"]):
+            if getattr(m, "type", "") == "ai":
+                reply = _extract_text(m)
+                if reply:
+                    break
+
+    print("Tools used:", ctx["tools"], "| fit:", "yes" if ctx["fit"] else "no", "| retrieval:", ctx["retrieval"])
     return {
         "reply": reply,
         "toolsUsed": list(dict.fromkeys(ctx["tools"])),
