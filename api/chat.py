@@ -266,6 +266,9 @@ def assess_fit(job_description: str, llm: ChatAnthropic, ctx: dict) -> dict:
     for d in docs:
         ctx["sources"][source_key(d)] = True
     human = f"CANDIDATE MATERIAL:\n{format_docs(docs)}\n\nJOB DESCRIPTION:\n{job_description[:MAX_CHARS]}"
+    # The tagging output is long (10 to 20 requirements with evidence), so the grader needs a much larger
+    # output budget than the 700 token chat reply. Truncated JSON was silently dropping the card.
+    llm = ChatAnthropic(model=MODEL, max_tokens=4000)
     result = None
     last_err = None
     # Attempt 1: native structured output (tool schema).
