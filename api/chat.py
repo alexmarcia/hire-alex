@@ -196,8 +196,20 @@ BUCKET_LABELS = {
 }
 
 
+DOMAIN_PATTERN = re.compile(r"clearance|public trust|secret|top secret|ts/sci|citizen|federal|government|dod|faa|defense|agency", re.IGNORECASE)
+
+
+def normalize_requirements(reqs: list[dict]) -> list[dict]:
+    """Pin clearance, citizenship, and federal experience items to the domain bucket regardless of how the grader tagged them."""
+    for r in reqs:
+        if DOMAIN_PATTERN.search(r.get("requirement", "")) and r.get("category") in ("other", "soft_skills", "experience"):
+            r["category"] = "domain"
+    return reqs
+
+
 def score_fit(reqs: list[dict]) -> dict:
     """Bucket based rubric so quantity in one area cannot swamp quality in another."""
+    reqs = normalize_requirements(reqs)
     buckets: dict[str, dict] = {}
     counts = {"met": 0, "learnable": 0, "gap": 0, "required": 0, "preferred": 0, "requiredGaps": 0}
     for r in reqs:
@@ -236,7 +248,15 @@ Tagging rules:
 4. learnable is for business platforms and product suites (CRM, Salesforce, SaaS tools, ticketing systems, BI products) that a person who already programs can pick up on the job. gap is for a required programming language, framework, or engineering discipline the material does not show.
 5. Credit adjacent evidence: building and deploying a Next.js and React site with a Python LangChain agent is project level web, Python, and LLM engineering experience; Slurm and HPC training jobs are infrastructure experience; SQL and database design are backend data experience.
 6. priority is required only when the posting calls it a must have, minimum, or basic qualification; otherwise preferred.
-7. Assign every requirement a category bucket. Merge near duplicates so counts reflect distinct skills, not phrasing."""
+7. Assign every requirement a category bucket. Security clearance, citizenship, and federal or defense experience always go in domain, never other. Merge near duplicates so counts reflect distinct skills, not phrasing."""
+
+
+def _extract_text(msg) -> str:
+    c = getattr(msg, "content", "")
+    if isinstance(c, str):
+        return c.strip()
+    return "".join(b.get("text", "") for b in c if isinstance(b, dict) and b.get("type") == "text").strip()
+
 
 
 def assess_fit(job_description: str, llm: ChatAnthropic, ctx: dict) -> dict:
@@ -245,20 +265,39 @@ def assess_fit(job_description: str, llm: ChatAnthropic, ctx: dict) -> dict:
     ctx["retrieval"] = kind
     for d in docs:
         ctx["sources"][source_key(d)] = True
-    grader = llm.with_structured_output(FitAssessment)
+    human = f"CANDIDATE MATERIAL:\n{format_docs(docs)}\n\nJOB DESCRIPTION:\n{job_description[:MAX_CHARS]}"
     result = None
     last_err = None
-    for attempt in range(2):
+    # Attempt 1: native structured output (tool schema).
+    try:
+        result = llm.with_structured_output(FitAssessment).invoke([("system", GRADER_PROMPT), ("human", human)])
+    except Exception as err:
+        last_err = err
+        print("Structured output failed:", repr(err))
+    # Attempt 2: plain JSON text, parsed and coerced leniently.
+    if not result or not result.requirements:
         try:
-            result = grader.invoke([
-                ("system", GRADER_PROMPT),
-                ("human", f"CANDIDATE MATERIAL:\n{format_docs(docs)}\n\nJOB DESCRIPTION:\n{job_description[:MAX_CHARS]}"),
-            ])
-            if result and result.requirements:
-                break
+            raw = _extract_text(llm.invoke([
+                ("system", GRADER_PROMPT + "\n\nRespond with JSON only, no prose, no markdown fences: "
+                 '{"requirements": [{"requirement": str, "category": str, "priority": "required"|"preferred", '
+                 '"status": "met"|"learnable"|"gap", "evidence": str}], "summary": str}'),
+                ("human", human),
+            ]))
+            cleaned = raw.replace("```json", "").replace("```", "").strip()
+            data = json.loads(cleaned[cleaned.index("{"): cleaned.rindex("}") + 1])
+            fixed = []
+            for r in data.get("requirements", []):
+                fixed.append(Requirement(
+                    requirement=str(r.get("requirement", ""))[:120],
+                    category=r.get("category") if r.get("category") in RUBRIC["importance"] else "other",
+                    priority="required" if str(r.get("priority", "")).lower().startswith("req") else "preferred",
+                    status=r.get("status") if r.get("status") in ("met", "learnable", "gap") else "gap",
+                    evidence=str(r.get("evidence", ""))[:200],
+                ))
+            result = FitAssessment(requirements=fixed, summary=str(data.get("summary", "")))
         except Exception as err:
             last_err = err
-            print("Fit grading attempt failed:", repr(err))
+            print("JSON fallback failed:", repr(err))
     if not result or not result.requirements:
         print("Fit grading produced no requirements:", repr(last_err))
         return {"error": "Could not structure the job description. Ask the visitor to paste the posting text again."}
@@ -354,13 +393,6 @@ SITE_PATTERN = re.compile(
 NARRATIVE_PROMPT = SYSTEM_PROMPT + """
 
 A fit assessment for the posting below has ALREADY been computed and is shown to the visitor as a card with the score, matches, and gaps. Do not call any tools. Write only the 3 to 5 sentence narrative described above, grounded in the assessment and my resume material provided here."""
-
-
-def _extract_text(msg) -> str:
-    c = getattr(msg, "content", "")
-    if isinstance(c, str):
-        return c.strip()
-    return "".join(b.get("text", "") for b in c if isinstance(b, dict) and b.get("type") == "text").strip()
 
 
 def run_agent(messages: list[dict]) -> dict:
